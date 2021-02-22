@@ -15,10 +15,9 @@
 
 
 #### 1. Load packages, source functions ##########################################################################
-
-library(ggplot2)
+library(tidyverse)
+library(ggbeeswarm)
 library(ggsci)
-library(tidyr)
 source("SummarizeNeurons.R")
 
 
@@ -37,21 +36,22 @@ SummarizeNeurons(folderdir)
 # load data
 resultsdir <- file.path(folderdir, "Results")
 Axon_results <- read.table(file.path(resultsdir, "Axon_results.txt"), sep = "\t", header = TRUE)
-Dendrite_results <- read.table(file.path(resultsdir, "Dendrite_results.txt"), sep = "\t", header = TRUE)
+Dendrite_results <- read.table(file.path(resultsdir, "Neurite_results.txt"), sep = "\t", header = TRUE)
 Misclass <- read.table(file.path(resultsdir, "Misclassified.txt"), sep = "\t", header = TRUE)
 
 ## merge with data from other folders if required
-Total <- merge(Axon_results, Dendrite_results)
+Total <- merge(Axon_results, Dendrite_results) %>% 
+  extract(Image, into = c("Image", "Cell"), regex = "(.+).csv_(.+)")
 
 
-## unblinding (if necessary)
-# library(readxl)
-# Blinding <- read_excel()
-#
-# Total<-merge(Total, Blinding)
+# unblinding (if necessary)
+library(readxl)
+Blinding <- read_excel(file.path(folderdir, "Groups.xlsx"))
+
+Total <- left_join(Total, Blinding, by = c("Image" = "Name"))
 
 # set order
-# Total$Condition<-factor(Total$Condition, levels=c("WT", "KO"))
+ Total$Genotype<-factor(Total$Genotype, levels=c("WT", "KO"))
   
 
 
@@ -62,7 +62,7 @@ plot_theme <- theme_minimal() +
   theme(
     panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
     axis.title = element_text(size = rel(1.15)),
-    axis.text.x = element_blank(), axis.ticks.y = element_line(color = "black"), #
+    # axis.text.x = element_blank(), axis.ticks.y = element_line(color = "black"), #
     strip.background = element_rect(fill = "grey90", color = NA), # Facet header color
     plot.title = element_text(hjust = 0.5, size = rel(1.3), face = "bold")
   )
@@ -70,42 +70,37 @@ plot_theme <- theme_minimal() +
 
 
 # total axon length
-axon_plot <- ggplot(Total, aes(x = " ", y = total_axon)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+axon_plot <- ggplot(Total, aes(x = Genotype, y = total_axon, col = Genotype)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
 
   # Axes and Title
   ggtitle("Total Axon length") +
   xlab("") +
-  ylab("Total axon length [Âµm]\n") +
+  ylab("Total axon length [µm]\n") +
   plot_theme +
   scale_color_startrek() +
   scale_fill_startrek()
 
 
 axon_plot
-ggsave("Total_axon_length.jpg",
-  plot = axon_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Total_axon_length.pdf",
-  plot = axon_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-
+# ggsave("Total_axon_length.jpg",
+#   plot = axon_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )
 
 
 # primary axon length
-axon_plot <- ggplot(Total, aes(x = " ", y = primary_axon)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+axon_plot <- ggplot(Total, aes(x = Genotype, 
+                               col = Genotype,
+                               y = primary_axon)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
-
+  
   # Axes and Title
   ggtitle("Primary Axon length") +
   xlab("") +
@@ -116,54 +111,95 @@ axon_plot <- ggplot(Total, aes(x = " ", y = primary_axon)) +
 
 
 axon_plot
-ggsave("Primary_axon_length.jpg",
-  plot = axon_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Primary_axon_length.pdf",
-  plot = axon_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
+# ggsave("Primary_axon_length.jpg",
+#   plot = axon_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )
 
 
-
-# Axon branch density
-axon_plot <- ggplot(Total, aes(x = " ", y = Total_branches_by_total_length)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+# Axon filopodia density
+axon_plot <- ggplot(Total, aes(x = Genotype, 
+                               col = Genotype,
+                               y = total_filopodia_by_total_length)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
-
+  
   # Axes and Title
-  ggtitle("Axon branch density") +
+  ggtitle("Axon filopodia density") +
   xlab("") +
-  ylab("Total branches / total axon length\n") +
+  ylab("Filopodia / total axon length\n") +
   plot_theme +
   scale_color_startrek() +
   scale_fill_startrek()
 
 
 axon_plot
-ggsave("Branch_density.jpg",
-  plot = axon_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Branch_density.pdf",
-  plot = axon_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
+# ggsave("Filo_density.jpg",
+#   plot = axon_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )
 
 
-
-# Dendrite length
-dend_plot <- ggplot(Total, aes(x = " ", y = total_dendrite)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+# Axon filopodia length (mean)
+axon_plot <- ggplot(Total, aes(x = Genotype, 
+                               col = Genotype,
+                               y = mean_filo_length)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
+  
+  # Axes and Title
+  ggtitle("Mean filopodium length") +
+  xlab("") +
+  ylab("mean length") +
+  plot_theme +
+  scale_color_startrek() +
+  scale_fill_startrek()
 
+
+axon_plot
+# ggsave("Filo_mean.jpg",
+#        plot = axon_plot, device = "jpeg", path = resultsdir,
+#        scale = 1, width = 15, height = 15, units = "cm"
+# )
+
+
+# Axon filopodia length (mean)
+axon_plot <- ggplot(Total, aes(x = Genotype, 
+                               col = Genotype,
+                               y = max_filo_length)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
+  stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
+  
+  # Axes and Title
+  ggtitle("Max filopodium length") +
+  xlab("") +
+  ylab("max length") +
+  plot_theme +
+  scale_color_startrek() +
+  scale_fill_startrek()
+
+
+axon_plot
+# ggsave("Filo_max.jpg",
+#        plot = axon_plot, device = "jpeg", path = resultsdir,
+#        scale = 1, width = 15, height = 15, units = "cm"
+# )
+
+# Neurite length
+dend_plot <- ggplot(Total, aes(x = Genotype, 
+                               col = Genotype,
+                               y = total_neurite)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
+  stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
+  
   # Axes and Title
   ggtitle("Total dendrite length") +
   xlab("") +
@@ -174,24 +210,19 @@ dend_plot <- ggplot(Total, aes(x = " ", y = total_dendrite)) +
 
 
 dend_plot
-ggsave("Dendrite_length.jpg",
-  plot = dend_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Dendrite_length.pdf",
-  plot = dend_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-
+# ggsave("Dendrite_length.jpg",
+#   plot = dend_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )
 
 
 # Dendrite number
-dend_plot <- ggplot(Total, aes(x = " ", y = Number_dendrites)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+dend_plot <- ggplot(Total, aes(x = Genotype, y = Number_neurites, col = Genotype)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
+  
 
   # Axes and Title
   ggtitle("Dendrites per cell") +
@@ -203,54 +234,23 @@ dend_plot <- ggplot(Total, aes(x = " ", y = Number_dendrites)) +
 
 
 dend_plot
-ggsave("Dendrite_number.jpg",
-  plot = dend_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Dendrite_number.pdf",
-  plot = dend_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
+# ggsave("Dendrite_number.jpg",
+#   plot = dend_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )
 
-
-
-# Dendrite branches
-dend_plot <- ggplot(Total, aes(x = " ", y = Branches_per_dendrite)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
-  stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
-
-  # Axes and Title
-  ggtitle("Branches per dendrite") +
-  xlab("") +
-  ylab("Branches per dendrite\n") +
-  plot_theme +
-  scale_color_startrek() +
-  scale_fill_startrek()
-
-
-dend_plot
-ggsave("Dendrite_branches.jpg",
-  plot = dend_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Dendrite_branches.pdf",
-  plot = dend_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
 
 
 
 # Total neurite length
-dend_plot <- ggplot(Total, aes(x = " ", y = total_neurite_length)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+dend_plot <- ggplot(Total, aes(x = Genotype,
+                               col = Genotype,
+                               y = total_length)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
-
+  
   # Axes and Title
   ggtitle("Total neurite length") +
   xlab("") +
@@ -261,41 +261,33 @@ dend_plot <- ggplot(Total, aes(x = " ", y = total_neurite_length)) +
 
 
 dend_plot
-ggsave("Neurite_length.jpg",
-  plot = dend_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Neurite_length.pdf",
-  plot = dend_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-
+# ggsave("Neurite_length.jpg",
+#   plot = dend_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )
 
 
 # Axon-dendrite ratio
-dend_plot <- ggplot(Total, aes(x = " ", y = axon_by_dendrite)) +
-  geom_jitter(aes(col = Condition), size = 2, width = 0.3, alpha = 0.5) +
-  facet_grid(~Condition) +
-  stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = 0.5) + ## Mean line (Boxplot with all borders=mean)
+dend_plot <- ggplot(Total, aes(x = Genotype,
+                               col = Genotype,
+                               y = axon_by_neurite)) +
+  geom_quasirandom(size = 2, width = 0.3, alpha = 0.5) +
+  facet_grid(~Treatment) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black") + ## Mean line (Boxplot with all borders=mean)
   stat_summary(fun.data = "mean_se", geom = "errorbar", color = "black", width = 0.3) + ## error bars (mean_se = SEM)
-  ylim(0, NA) +
+  
 
   # Axes and Title
-  ggtitle("Axon / Dendrite ratio") +
+  ggtitle("Axon / Neurite ratio") +
   xlab("") +
-  ylab("Total axon length / Total dendrite length\n") +
+  ylab("Total axon length / Total neurite length\n") +
   plot_theme +
   scale_color_startrek() +
   scale_fill_startrek()
 
 
 dend_plot
-ggsave("Axon_dendrite.jpg",
-  plot = dend_plot, device = "jpeg", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-)
-ggsave("Axon_dendrite.pdf",
-  plot = dend_plot, device = "pdf", path = resultsdir,
-  scale = 1, width = 15, height = 15, units = "cm"
-) 
-        
+# ggsave("Axon_dendrite.jpg",
+#   plot = dend_plot, device = "jpeg", path = resultsdir,
+#   scale = 1, width = 15, height = 15, units = "cm"
+# )

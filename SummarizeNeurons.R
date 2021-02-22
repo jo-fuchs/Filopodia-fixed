@@ -22,7 +22,7 @@ SummarizeNeurons <- function(folderdir) {
       if (tolower(temp$Type[k]) == "axon") {
         Axon[k] <- temp[k, 6]
       }
-      else if (tolower(temp$Type[k]) == "primary branch") {
+      else if (tolower(temp$Type[k]) %in% c("primary branch", "secondary")) {
         Branch[k] <- temp[k, 6]
       }
       else if (tolower(temp$Type[k]) == "filopodium") {
@@ -82,8 +82,8 @@ SummarizeNeurons <- function(folderdir) {
     Leftover[j, 1] <- ID                                                        # Image-Name
     Leftover[j, 2] <- length(na.omit(Other))                                    # Number of non-/ mis-classified processes
     
-    if(Leftover[i, 2] > 0) {
-      warning(paste(ID, ": some tracings have an unfamiliar type. Consider revising the NeuronJ tracings before you continue. \nSupported types are: Axon, Primary, Secondary, Tertiary, Quartiary, Neurite & Neurite_primary\n"))
+    if(Leftover[j, 2] > 0) {
+      warning(paste(ID, ": some tracings have an unfamiliar type. Consider revising the NeuronJ tracings before you continue. \nSupported types are: Axon, Primary branch, Secondary, Filopodium, Branch Filopodium, Neurite, Neurite filopodium & Neurite branch\n"))
     }
     
     result <- list(Axon_results = Axon_results, Neurite_results = Neurite_results, Leftover = Leftover)
@@ -186,8 +186,8 @@ SummarizeNeurons <- function(folderdir) {
         inputlist <- SummarizeIndividual(cluster, ID, inputlist)
       }
     } else if (length(unique(temp$Cluster)) == 1) {
-      ID <- paste(folderlist[i], cluster$Cluster[1], sep = "_") # The Cluster gives the name
-      inputlist <- SummarizeIndividual(cluster, I, inputlist)
+      ID <- paste(folderlist[i], temp$Cluster[1], sep = "_") # The Cluster gives the name
+      inputlist <- SummarizeIndividual(temp, ID, inputlist)
     }
         
   }
